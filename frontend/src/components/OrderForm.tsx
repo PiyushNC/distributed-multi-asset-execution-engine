@@ -16,11 +16,16 @@ function isAccountBalance(value: unknown): value is AccountBalance {
 export function OrderForm({ pair }: { pair: string }) {
   const { socket, token } = useSocket();
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY');
+  const [orderType, setOrderType] = useState<'LIMIT' | 'MARKET'>('LIMIT');
   const [price, setPrice] = useState('50000');
   const [quantity, setQuantity] = useState('0.1');
   const [balance, setBalance] = useState<AccountBalance>(initialBalance);
   const [message, setMessage] = useState('');
   const [toast, setToast] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+
+  const [baseAsset, quoteAsset] = pair.split('-');
+  const quoteAvailable = balance.quoteBalance?.[quoteAsset] ?? 0;
+  const baseAvailable = balance.assetBalance?.[baseAsset] ?? 0;
 
   useEffect(() => {
     if (!socket) return;
@@ -44,10 +49,6 @@ export function OrderForm({ pair }: { pair: string }) {
       .catch(() => undefined);
   }, [token]);
 
-  const [baseAsset, quoteAsset] = pair.split('-');
-  const quoteAvailable = balance.quoteBalance?.[quoteAsset] ?? 0;
-  const baseAvailable = balance.assetBalance?.[baseAsset] ?? 0;
-
   async function submitOrder(event: FormEvent) {
     event.preventDefault();
     if (!token) {
@@ -57,18 +58,27 @@ export function OrderForm({ pair }: { pair: string }) {
     }
     setMessage('Submitting to execution queue...');
     try {
+      const body: Record<string, unknown> = {
+        pair,
+        side,
+        type: orderType,
+        quantity: Number(quantity),
+      };
+      if (orderType === 'LIMIT') {
+        body.price = Number(price);
+      }
       const response = await fetch(`${API_URL}/api/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ pair, side, type: 'LIMIT', price: Number(price), quantity: Number(quantity) }),
+        body: JSON.stringify(body),
       });
       const data = await response.json() as { message?: string; order?: { status: string } };
       if (!response.ok) throw new Error(data.message ?? 'Order could not be submitted');
       setMessage(`Queued · ${data.order?.status ?? 'PENDING'}`);
-      setToast({ kind: 'success', text: `${side} order queued for execution.` });
+      setToast({ kind: 'success', text: `${side} ${orderType} order queued for execution.` });
     } catch (error) {
       const text = error instanceof Error ? error.message : 'Order could not be submitted';
       setMessage(text);
@@ -78,16 +88,50 @@ export function OrderForm({ pair }: { pair: string }) {
 
   return (
     <section className="panel order-form-panel">
-      <div className="panel-heading"><div><span className="eyebrow">Execution</span><h2>Place order</h2></div><span className="queued-pill">LIMIT</span></div>
+      <div className="panel-heading">
+        <div><span className="eyebrow">Execution</span><h2>Place order</h2></div>
+        <div className="order-type-toggle">
+          <button
+            className={orderType === 'LIMIT' ? 'type-active' : ''}
+            onClick={() => setOrderType('LIMIT')}
+            type="button"
+          >
+            LIMIT
+          </button>
+          <button
+            className={orderType === 'MARKET' ? 'type-active' : ''}
+            onClick={() => setOrderType('MARKET')}
+            type="button"
+          >
+            MARKET
+          </button>
+        </div>
+      </div>
       <div className="side-toggle">
-        <button className={side === 'BUY' ? 'active buy-action' : ''} onClick={() => setSide('BUY')} type="button">Buy BTC</button>
-        <button className={side === 'SELL' ? 'active sell-action' : ''} onClick={() => setSide('SELL')} type="button">Sell BTC</button>
+        <button className={side === 'BUY' ? 'active buy-action' : ''} onClick={() => setSide('BUY')} type="button">Buy {baseAsset}</button>
+        <button className={side === 'SELL' ? 'active sell-action' : ''} onClick={() => setSide('SELL')} type="button">Sell {baseAsset}</button>
       </div>
       <form onSubmit={submitOrder}>
-        <label>Limit price <span>{quoteAsset}</span><input inputMode="decimal" value={price} onChange={(event) => setPrice(event.target.value)} /></label>
+        {orderType === 'LIMIT' ? (
+          <label>
+            Limit price <span>{quoteAsset}</span>
+            <input inputMode="decimal" value={price} onChange={(event) => setPrice(event.target.value)} />
+          </label>
+        ) : (
+          <div className="market-order-notice">
+            <span>⚡</span>
+            <span>Market order — fills at best available price</span>
+          </div>
+        )}
         <label>Quantity <span>{baseAsset}</span><input inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
-        <div className="available-row"><span>Available</span><strong>{side === 'BUY' ? `${quoteAvailable.toLocaleString()} ${quoteAsset}` : `${baseAvailable} ${baseAsset}`}</strong></div>
-        <button className={`submit-order ${side.toLowerCase()}`} type="submit">Review {side} order <span>→</span></button>
+        <div className="available-row">
+          <span>Available</span>
+          <strong>{side === 'BUY' ? `${quoteAvailable.toLocaleString()} ${quoteAsset}` : `${baseAvailable} ${baseAsset}`}</strong>
+        </div>
+        <button className={`submit-order ${side.toLowerCase()}`} type="submit">
+          {side} {orderType === 'MARKET' ? 'at market' : `${baseAsset} →`}
+          <span>{orderType === 'MARKET' ? '⚡' : '→'}</span>
+        </button>
       </form>
       {!token ? <p className="form-message">Sign in above to place orders.</p> : null}
       {message ? <p className="form-message">{message}</p> : null}

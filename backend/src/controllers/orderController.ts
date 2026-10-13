@@ -35,22 +35,33 @@ export async function createOrderHandler(request: Request, response: Response): 
       return;
     }
 
-    const { pair, side, price, quantity } = request.body as {
+    const { pair, side, price, quantity, type: orderType } = request.body as {
       pair?: unknown;
       side?: unknown;
       price?: unknown;
       quantity?: unknown;
+      type?: unknown;
     };
+
     const parsedPair = parsePair(pair);
+    const resolvedType = orderType === 'MARKET' ? 'MARKET' : 'LIMIT';
+    const isMarket = resolvedType === 'MARKET';
 
     if (
       !parsedPair ||
       (side !== 'BUY' && side !== 'SELL') ||
-      !validPositiveNumber(price) ||
       !validPositiveNumber(quantity)
     ) {
       response.status(400).json({
-        message: 'pair, side (BUY or SELL), positive price, and positive quantity are required',
+        message: 'pair, side (BUY or SELL), and positive quantity are required',
+      });
+      return;
+    }
+
+    // LIMIT orders require an explicit price
+    if (!isMarket && !validPositiveNumber(price)) {
+      response.status(400).json({
+        message: 'price is required for LIMIT orders',
       });
       return;
     }
@@ -62,23 +73,53 @@ export async function createOrderHandler(request: Request, response: Response): 
       return;
     }
 
-    const requiredBalance = side === 'BUY' ? price * quantity : quantity;
+    // For balance checks on market orders, estimate using best available price in the book
+    let balanceCheckPrice: number;
+    if (isMarket) {
+      if (side === 'BUY') {
+        const depth = matchingEngine.getTopDepth(parsedPair.normalizedPair);
+        const bestAsk = depth.asks[0]?.price;
+        if (!bestAsk) {
+          response.status(400).json({ message: 'No liquidity available for market buy on this pair' });
+          return;
+        }
+        balanceCheckPrice = bestAsk;
+      } else {
+        balanceCheckPrice = 0; // SELL: only requires base asset; no quote needed
+      }
+    } else {
+      balanceCheckPrice = price as number;
+    }
+
+    const requiredBalance = side === 'BUY' ? balanceCheckPrice * (quantity as number) : (quantity as number);
     const availableBalance = side === 'BUY'
       ? account.quoteBalance[parsedPair.quoteAsset] ?? 0
       : account.assetBalance[parsedPair.baseAsset] ?? 0;
-    if (availableBalance < requiredBalance) {
+
+    if (side === 'BUY' && availableBalance < requiredBalance) {
       response.status(400).json({
-        message: `Insufficient ${side === 'BUY' ? parsedPair.quoteAsset : parsedPair.baseAsset} balance`,
+        message: `Insufficient ${parsedPair.quoteAsset} balance`,
       });
       return;
     }
+    if (side === 'SELL' && availableBalance < (quantity as number)) {
+      response.status(400).json({
+        message: `Insufficient ${parsedPair.baseAsset} balance`,
+      });
+      return;
+    }
+
+    // Market orders stored with a sentinel price that guarantees crossing
+    const storedPrice = isMarket
+      ? (side === 'BUY' ? Number.MAX_SAFE_INTEGER : 0)
+      : (price as number);
 
     const order = await Order.create({
       userId,
       pair: parsedPair.normalizedPair,
       side,
-      type: 'LIMIT',
-      price,
+      type: resolvedType,
+      price: storedPrice,
       quantity,
       filledQuantity: 0,
       status: 'PENDING',
@@ -89,6 +130,7 @@ export async function createOrderHandler(request: Request, response: Response): 
       { jobId: order._id.toString() },
     );
     void broadcastQueueTelemetry(orderQueue);
+    broadcastHeapTelemetry(matchingEngine, parsedPair.normalizedPair);
 
     response.status(202).json({ order, jobId: job.id });
   } catch (error) {

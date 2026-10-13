@@ -23,7 +23,7 @@ export type UserOrder = {
   id?: string;
   pair: string;
   side: 'BUY' | 'SELL';
-  type: 'LIMIT';
+  type: 'LIMIT' | 'MARKET';
   price: number;
   quantity: number;
   filledQuantity: number;

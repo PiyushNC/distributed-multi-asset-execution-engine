@@ -57,6 +57,7 @@ function DepthRows({
 export function OrderBook({ pair }: { pair: string }) {
   const { socket } = useSocket();
   const [book, setBook] = useState<OrderBookUpdate>(emptyBook);
+  const [baseAsset] = pair.split('-');
 
   useEffect(() => {
     fetch(`${API_URL}/api/markets/${pair}/orderbook`)
@@ -96,7 +97,7 @@ export function OrderBook({ pair }: { pair: string }) {
         </div>
         <span className="spread">Spread {spread ? formatPrice(spread) : '--'}</span>
       </div>
-      <div className="depth-header"><span>Price (USD)</span><span>Size (BTC)</span><span>Orders</span></div>
+      <div className="depth-header"><span>Price (USD)</span><span>Size ({baseAsset})</span><span>Orders</span></div>
       <DepthRows levels={asks} tone="sell" reverseVisual />
       <div className="midpoint spread-indicator">
         {pair.replace('-', ' / ')}

@@ -53,12 +53,17 @@ npm install
 npm run simulate:market
 ```
 
-The repository uses native ES modules and Node.js 22. The backend already uses `tsx` for TypeScript execution, so `tsx` is the supported runner here. `npx ts-node scripts/simulateMarket.ts` fails with `ERR_UNKNOWN_FILE_EXTENSION` because the installed `ts-node` 10 runner does not correctly bridge this repository's ESM configuration.
+The requested command is:
+
+```powershell
+npx ts-node scripts/simulateMarket.ts
+```
+
+However, this repository uses native ES modules with Node.js 22, and the installed `ts-node` 10 runner fails with `ERR_UNKNOWN_FILE_EXTENSION`. The verified working command is `npm run simulate:market`, which uses `tsx`.
 
 Optional configuration:
 
 ```powershell
-$env:SIM_BOTS="12"
 $env:SIM_API_URL="http://localhost:4000"
 $env:MONGODB_URI="mongodb://localhost:27017/execution_engine?replicaSet=rs0"
 npm run simulate:market
@@ -72,6 +77,9 @@ Set an email as an admin before registering that account:
 
 ```env
 ADMIN_EMAILS=admin@example.com
+Email: admin@arc.io
+
+Password: Admin123!
 ```
 
 Restart the backend, register or log in as `admin@example.com`, and open the `Admin visualizer` button in the navbar. Only JWTs with `role: "ADMIN"` can join `admin:telemetry`; regular users can still receive public market events but never receive queue, heap, or transaction telemetry.

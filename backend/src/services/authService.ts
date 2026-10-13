@@ -44,7 +44,7 @@ export async function registerUser(email: string, password: string) {
 
   await Account.create({
     userId: user._id,
-    assetBalance: { BTC: 1, ETH: 10 },
+    assetBalance: { BTC: 1, ETH: 10, SOL: 500 },
     quoteBalance: { USD: 100000 },
   });
 

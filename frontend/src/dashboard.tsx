@@ -14,6 +14,36 @@ function formatUsd(price: number) {
   return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const PAIRS = [
+  { id: 'BTC-USD', label: 'BTC / USD', sub: 'Bitcoin', icon: '₿', iconClass: '' },
+  { id: 'ETH-USD', label: 'ETH / USD', sub: 'Ethereum', icon: 'Ξ', iconClass: 'eth' },
+  { id: 'SOL-USD', label: 'SOL / USD', sub: 'Solana', icon: 'S', iconClass: 'sol' },
+];
+
+function WatchRow({ pairId, label, sub, icon, iconClass, selected, onClick }: {
+  pairId: string; label: string; sub: string; icon: string; iconClass: string;
+  selected: boolean; onClick: () => void;
+}) {
+  const { changePct } = useLiveTrades(pairId);
+  const positive = changePct >= 0;
+  return (
+    <button
+      className={`watch-row ${selected ? 'selected' : ''}`}
+      onClick={onClick}
+      type="button"
+    >
+      <span className={`watch-icon ${iconClass}`}>{icon}</span>
+      <span>
+        <strong>{label}</strong>
+        <small>{sub}</small>
+      </span>
+      <b className={positive ? undefined : 'change-down'}>
+        {positive ? '+' : ''}{changePct.toFixed(2)}%
+      </b>
+    </button>
+  );
+}
+
 export function Dashboard() {
   const { status, token, setToken, user } = useSocket();
   const [pair, setPair] = useState('BTC-USD');
@@ -40,13 +70,22 @@ export function Dashboard() {
       <div className="workspace">
         <aside className="sidebar">
           <div className="sidebar-label">Markets</div>
-          <button className={`watch-row ${pair === 'BTC-USD' ? 'selected' : ''}`} onClick={() => setPair('BTC-USD')} type="button"><span className="watch-icon">₿</span><span><strong>BTC / USD</strong><small>Bitcoin</small></span><b className={pair === 'BTC-USD' && !positive ? 'change-down' : undefined}>{pair === 'BTC-USD' ? `${positive ? '+' : ''}${changePct.toFixed(2)}%` : '—'}</b></button>
-          <button className={`watch-row ${pair === 'ETH-USD' ? 'selected' : ''}`} onClick={() => setPair('ETH-USD')} type="button"><span className="watch-icon eth">Ξ</span><span><strong>ETH / USD</strong><small>Ethereum</small></span><b>—</b></button>
-          <button className={`watch-row ${pair === 'SOL-USD' ? 'selected' : ''}`} onClick={() => setPair('SOL-USD')} type="button"><span className="watch-icon sol">S</span><span><strong>SOL / USD</strong><small>Solana</small></span><b>—</b></button>
+          {PAIRS.map((p) => (
+            <WatchRow
+              key={p.id}
+              pairId={p.id}
+              label={p.label}
+              sub={p.sub}
+              icon={p.icon}
+              iconClass={p.iconClass}
+              selected={pair === p.id}
+              onClick={() => setPair(p.id)}
+            />
+          ))}
           <div className="sidebar-spacer" />
           <div className="sidebar-label">Account</div>
           <AccountSection onLogout={() => setToken('')} />
-          <div className="sidebar-footer">v0.8.0 · execution engine</div>
+          <div className="sidebar-footer">v0.9.0 · execution engine</div>
         </aside>
         <section className="main-column">
           <PriceChart pair={pair} />

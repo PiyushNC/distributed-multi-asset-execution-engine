@@ -7,6 +7,11 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 
 function orderId(order: UserOrder) { return order._id ?? order.id ?? ''; }
 
+function formatTime(iso?: string) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 export function UserOrders() {
   const { socket, token } = useSocket();
   const [orders, setOrders] = useState<UserOrder[]>([]);
@@ -49,17 +54,33 @@ export function UserOrders() {
 
   return (
     <section className="panel user-orders-panel">
-      <div className="panel-heading"><div><span className="eyebrow">Your activity</span><h2>Orders</h2></div><span className="muted">{orders.length} total</span></div>
+      <div className="panel-heading">
+        <div><span className="eyebrow">Your activity</span><h2>Orders</h2></div>
+        <span className="muted">{orders.length} total</span>
+      </div>
       <div className="orders-table">
-        <div className="orders-header"><span>Pair</span><span>Side</span><span>Price</span><span>Filled</span><span>Status</span><span /></div>
+        <div className="orders-header">
+          <span>Pair</span>
+          <span>Side</span>
+          <span>Price</span>
+          <span>Filled</span>
+          <span>Type</span>
+          <span>Status</span>
+          <span>Time</span>
+          <span />
+        </div>
         {orders.length === 0 ? <div className="empty-state">Authenticate to load orders</div> : null}
         {orders.map((order) => (
           <div className="orders-row" key={orderId(order)}>
             <strong>{order.pair}</strong>
             <span className={order.side === 'BUY' ? 'buy-text' : 'sell-text'}>{order.side}</span>
-            <span>{order.price.toLocaleString()}</span>
-            <span>{order.filledQuantity} / {order.quantity}</span>
+            <span>{order.type === 'MARKET' ? 'MKT' : order.price.toLocaleString()}</span>
+            <span>{order.filledQuantity.toFixed(4)} / {order.quantity.toFixed(4)}</span>
+            <span className={`order-type-badge ${order.type === 'MARKET' ? 'type-market' : 'type-limit'}`}>
+              {order.type}
+            </span>
             <span className={`status status-${order.status.toLowerCase()}`}>{order.status}</span>
+            <span className="order-time">{formatTime(order.createdAt)}</span>
             <span>{order.status === 'OPEN' || order.status === 'PARTIALLY_FILLED' ? <button className="cancel-order" onClick={() => void cancelOrder(order)}>Cancel</button> : null}</span>
           </div>
         ))}

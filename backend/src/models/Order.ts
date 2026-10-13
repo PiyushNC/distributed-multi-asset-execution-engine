@@ -1,7 +1,7 @@
 import mongoose, { Schema } from 'mongoose';
 
 export type OrderSide = 'BUY' | 'SELL';
-export type OrderType = 'LIMIT';
+export type OrderType = 'LIMIT' | 'MARKET';
 export type OrderStatus = 'PENDING' | 'OPEN' | 'PARTIALLY_FILLED' | 'FILLED' | 'CANCELLED';
 
 export interface IOrder {
@@ -39,7 +39,7 @@ const OrderSchema = new Schema<IOrder>(
     },
     type: {
       type: String,
-      enum: ['LIMIT'],
+      enum: ['LIMIT', 'MARKET'],
       default: 'LIMIT',
     },
     price: {
